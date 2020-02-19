@@ -1,10 +1,24 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using System.Collections.Generic;
 
 namespace CodeBuilderApp.Tagging
 {
-    class DocumentGroup
+    public sealed class DocumentGroup
     {
+        public DocumentGroup(string name, string text, List<TagElement> tags)
+        {
+            this.Name = name;
+            this.Text = text;
+            this.Tags = tags;
+        }
+
+        public DocumentGroup(string name, string text)
+        {
+            this.Name = name;
+            this.Text = text;
+        }
+
+        public string Name { get; }
+        public List<TagElement>? Tags { get; }
+        public string Text { get; }
     }
 }

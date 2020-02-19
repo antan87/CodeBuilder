@@ -10,7 +10,8 @@ namespace CodeBuilderWorkspace.Workspace.Factory
     {
         public Task<MSBuildWorkspace> GetWorkspace()
         {
-            MSBuildLocator.RegisterDefaults();
+            if (!MSBuildLocator.IsRegistered)
+                MSBuildLocator.RegisterDefaults();
             MSBuildWorkspace workspace = MSBuildWorkspace.Create();
             workspace.WorkspaceFailed += (o, e) => Console.WriteLine(e.Diagnostic.Message);
 
