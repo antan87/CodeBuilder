@@ -1,4 +1,5 @@
-﻿using CodeBuilderApp.Tasks.Interfaces;
+﻿using CodeBuilderApp.Tasks.Functions;
+using CodeBuilderApp.Tasks.Interfaces;
 using System;
 using System.Collections.Generic;
 
