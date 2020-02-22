@@ -6,6 +6,9 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.MSBuild;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace CodeBuilderWorkspace.Workspace.Handler
 {
@@ -19,6 +22,24 @@ namespace CodeBuilderWorkspace.Workspace.Handler
         public void AddDocuments(IEnumerable<AddDocumentContainer> containers)
         {
         }
+
+        public async Task<Solution> GetSolution(string solutionPath)
+        {
+            return await this.Workspace.OpenSolutionAsync(solutionPath, new ConsoleProgressReporter());
+        }
+
+        public async Task<Project> GetProject(string projectFilePath)
+        {
+            return await this.Workspace.OpenProjectAsync(projectFilePath, new ConsoleProgressReporter());
+        }
+
+        public Solution GetSolution() => this.Workspace.CurrentSolution;
+
+        public IEnumerable<Project> GetProjects(Solution solution) => solution.Projects.ToList();
+
+        public IEnumerable<Document> GetDocuments(Project project) => project.Documents;
+
+        public MSBuildWorkspace Workspace { get; }
 
         public void TestAddDocument()
         {
@@ -83,6 +104,18 @@ namespace CodeBuilderWorkspace.Workspace.Handler
             Console.WriteLine(code);
         }
 
-        public MSBuildWorkspace Workspace { get; }
+        private class ConsoleProgressReporter : IProgress<ProjectLoadProgress>
+        {
+            public void Report(ProjectLoadProgress loadProgress)
+            {
+                var projectDisplay = Path.GetFileName(loadProgress.FilePath);
+                if (loadProgress.TargetFramework != null)
+                {
+                    projectDisplay += $" ({loadProgress.TargetFramework})";
+                }
+
+                Console.WriteLine($"{loadProgress.Operation,-15} {loadProgress.ElapsedTime,-15:m\\:ss\\.fffffff} {projectDisplay}");
+            }
+        }
     }
 }
