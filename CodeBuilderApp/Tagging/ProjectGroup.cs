@@ -1,10 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using System.Collections.Generic;
 
 namespace CodeBuilderApp.Tagging
 {
-    class ProjectGroup
+    public sealed class ProjectGroup
     {
+        public ProjectGroup(IList<DocumentGroup> documents)
+        {
+            this.Documents = documents;
+        }
+
+        public IList<DocumentGroup> Documents { get; }
     }
 }
