@@ -4,7 +4,7 @@ namespace CodeBuilderApp.Tagging
 {
     public sealed class DocumentGroup
     {
-        public DocumentGroup(string folder, string name, string text, List<TagElement>? folderTags, List<TagElement> nameTags, List<TagElement> textTags)
+        public DocumentGroup(string folder, string name, string text, List<TagElement> folderTags, List<TagElement> nameTags, List<TagElement> textTags)
         {
             this.Folder = folder;
             this.Name = name;
@@ -21,11 +21,16 @@ namespace CodeBuilderApp.Tagging
             this.Text = text;
         }
 
-        public string Folder { get; }
+        private DocumentGroup()
+        {
+        }
+
+        public string Folder { get; set; } = string.Empty;
         public List<TagElement> FolderTags { get; } = new List<TagElement>();
-        public string Name { get; }
+        public string Name { get; set; } = string.Empty;
         public List<TagElement> NameTags { get; } = new List<TagElement>();
-        public string Text { get; }
+
+        public string Text { get; set; } = string.Empty;
         public List<TagElement> TextTags { get; } = new List<TagElement>();
     }
 }
