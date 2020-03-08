@@ -37,6 +37,21 @@ namespace CodeBuilderApp.Tasks
             }
         }
 
+        internal static async Task<T> RunTask<T>(Func<T, T, Task<(TaskReturnKind, T)>> task, T input, T input2) where T : class
+        {
+            bool exit = false;
+            while (!exit)
+            {
+                (TaskReturnKind, T) result = await task(input, input2);
+                if (result.Item1 == TaskReturnKind.Exit)
+                    exit = true;
+
+                input = result.Item2;
+            }
+
+            return input;
+        }
+
         internal static async Task<T> RunTask<T>(Func<T, Task<(TaskReturnKind, T)>> task, T input) where T : class
         {
             bool exit = false;
@@ -52,7 +67,7 @@ namespace CodeBuilderApp.Tasks
             return input;
         }
 
-        internal static async System.Threading.Tasks.Task RunTask<T>(Func<T, Task<TaskReturnKind>> task, T input) where T : class
+        internal static async Task RunTask<T>(Func<T, Task<TaskReturnKind>> task, T input) where T : class
         {
             bool exit = false;
             while (!exit)

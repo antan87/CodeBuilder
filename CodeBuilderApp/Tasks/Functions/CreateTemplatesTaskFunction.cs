@@ -1,4 +1,5 @@
-﻿using CodeBuilderApp.Tagging;
+﻿using CodeBuilderApp.Common;
+using CodeBuilderApp.Tagging;
 using CodeBuilderApp.Tasks.Interfaces;
 using CodeBuilderWorkspace.Workspace.Factory;
 using Microsoft.CodeAnalysis;
@@ -7,47 +8,13 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace CodeBuilderApp.Tasks.Functions
 {
     internal class CreateTemplatesTaskFunction : ITaskFunction
     {
-        public string Name => "Create class templates";
-
-        public async Task RunTask()
-        {
-            Console.WriteLine(Environment.NewLine);
-            Console.WriteLine("Create class templates:");
-            Console.WriteLine(Environment.NewLine);
-
-            Console.WriteLine("Input solution path.");
-            Console.WriteLine(Environment.NewLine);
-            string solutionPath = Console.ReadLine();
-            if (!File.Exists(solutionPath))
-            {
-                Console.WriteLine("File does not exists!");
-                return;
-            }
-
-            using var workspace = await new MSBuildWorkspaceFactory().GetWorkspace();
-            Solution solution = await workspace.OpenSolutionAsync(solutionPath);
-
-            Console.WriteLine("Select project:");
-            Project? project = await TaskExecutable.RunTask(GetProjectTask, solution);
-            if (project == null)
-                return;
-
-            List<DocumentGroup> documentGroups = new List<DocumentGroup>();
-            await foreach (DocumentGroup? documentGroup in TaskExecutable.RunTask(GetDocumentTask, project))
-                if (documentGroup != null)
-                    documentGroups.Add(documentGroup);
-            var projectGroup = new ProjectGroup(documentGroups);
-            await TaskExecutable.RunTask(SaveDocumentsTask, projectGroup);
-
-            workspace.CloseSolution();
-        }
-
         private async Task<(TaskReturnKind, DocumentGroup?)> GetDocumentTask(Project project)
         {
             Console.WriteLine(Environment.NewLine);
@@ -57,7 +24,8 @@ namespace CodeBuilderApp.Tasks.Functions
             int index = 1;
             foreach (Document document in project.Documents)
             {
-                Console.WriteLine($"{index}: {document.Name}");
+                Console.WriteLine($"{index}: {(document.Folders.Any() ? string.Join(@"\", document.Folders) + @"\" : string.Empty)}{document.Name}");
+
                 documents[index.ToString()] = document;
                 index++;
             }
@@ -74,11 +42,48 @@ namespace CodeBuilderApp.Tasks.Functions
             DocumentGroup documentGroup = new DocumentGroup(folder, selecteDocument.Name, text.ToString());
             if (!string.IsNullOrWhiteSpace(documentGroup.Folder))
                 documentGroup = await TaskExecutable.RunTask<DocumentGroup>(TagFolder, documentGroup);
+            else
+                documentGroup = await TaskExecutable.RunTask<DocumentGroup>(TagEmptyFolder, documentGroup);
 
             documentGroup = await TaskExecutable.RunTask<DocumentGroup>(TagName, documentGroup);
             documentGroup = await TaskExecutable.RunTask<DocumentGroup>(TagDocument, documentGroup);
 
             return (TaskReturnKind.Exit, documentGroup);
+        }
+
+        public string Name => "Create class templates";
+
+        public async Task RunTask()
+        {
+            Console.WriteLine(Environment.NewLine);
+            Console.WriteLine(this.Name);
+            Console.WriteLine(Environment.NewLine);
+
+            Console.WriteLine("Input solution path.");
+            Console.WriteLine(Environment.NewLine);
+            string solutionPath = Console.ReadLine();
+            if (!File.Exists(solutionPath))
+            {
+                Console.WriteLine("File does not exists!");
+                return;
+            }
+
+            using var workspace = await new MSBuildWorkspaceFactory().GetWorkspace();
+            Solution solution = await workspace.OpenSolutionAsync(solutionPath);
+
+            Console.WriteLine("Select project:");
+            Project? project = await TaskExecutable.RunTask(CommonTaskFunctions.GetProjectTask, solution);
+            if (project == null)
+                return;
+
+            List<DocumentGroup> documentGroups = new List<DocumentGroup>();
+            await foreach (DocumentGroup? documentGroup in TaskExecutable.RunTask(GetDocumentTask, project))
+                if (documentGroup != null)
+                    documentGroups.Add(documentGroup);
+            var projectGroup = new ProjectGroup(documentGroups);
+            await TaskExecutable.RunTask(SaveDocumentsTask, projectGroup);
+
+            workspace.CloseSolution();
         }
 
         private Task<TaskReturnKind> SaveDocumentsTask(ProjectGroup projectGroup)
@@ -99,31 +104,9 @@ namespace CodeBuilderApp.Tasks.Functions
 
             var json = JsonConvert.SerializeObject(projectGroup);
 
-            File.WriteAllText(@$"{folderPath}\{fileName}.ctmpl", json);
+            File.WriteAllText(@$"{folderPath}\{fileName}{FileExtensions.FileTemplateExtension}", json);
 
             return Task.FromResult(TaskReturnKind.Exit);
-        }
-
-        private Task<(bool, Project?)> GetProjectTask(Solution solution)
-        {
-            Dictionary<string, Project?> projects = new Dictionary<string, Project?>();
-            int index = 1;
-            foreach (Project project in solution.Projects)
-            {
-                Console.WriteLine($"{index}: {project.Name}");
-                projects[index.ToString()] = project;
-                index++;
-            }
-
-            string projectIndex = Console.ReadLine();
-            if (!projects.ContainsKey(projectIndex))
-            {
-                Console.WriteLine("Wrong input try again!");
-                return Task.FromResult<(bool, Project)>((false, (Project?)null));
-            }
-            Project? seletedProject = projects[projectIndex];
-
-            return Task.FromResult<(bool, Project seletedProject)>((true, seletedProject));
         }
 
         private Task<(TaskReturnKind, DocumentGroup)> TagDocument(DocumentGroup documentGroup)
@@ -150,7 +133,7 @@ namespace CodeBuilderApp.Tasks.Functions
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine("Continue tagging?");
             Console.WriteLine(Environment.NewLine);
-            var response = Console.ReadLine();
+            string response = Console.ReadLine();
             if (response.ToLower() == "y")
                 return Task.FromResult((TaskReturnKind.Continue, newDocumentGroup));
 
@@ -187,6 +170,53 @@ namespace CodeBuilderApp.Tasks.Functions
             return Task.FromResult((TaskReturnKind.Exit, newDocumentGroup));
         }
 
+        private Task<(TaskReturnKind, DocumentGroup)> TagEmptyFolder(DocumentGroup documentGroup)
+        {
+            Console.WriteLine(Environment.NewLine);
+            Console.WriteLine(Environment.NewLine);
+            Console.WriteLine("Create folder.");
+            Console.WriteLine(Environment.NewLine);
+
+            Console.WriteLine("1: Create tagg.");
+            Console.WriteLine("2: Create name.");
+            Console.WriteLine("Any: Exit.");
+            string selectedOption = Console.ReadLine();
+
+            switch (selectedOption)
+            {
+                case "1":
+                    {
+                        Console.WriteLine(Environment.NewLine);
+                        Console.WriteLine("Input tagg.");
+                        string tag = Console.ReadLine();
+                        if (string.IsNullOrWhiteSpace(tag))
+                            return Task.FromResult((TaskReturnKind.Continue, documentGroup));
+
+                        string newFolder = $"{(string.IsNullOrWhiteSpace(documentGroup.Folder) ? string.Empty : documentGroup.Folder + "/") }${tag}$";
+                        List<TagElement> newFolderTags = documentGroup.FolderTags;
+                        newFolderTags.Add(new TagElement(tag));
+
+                        return Task.FromResult((TaskReturnKind.Continue, new DocumentGroup(newFolder, documentGroup.Name, documentGroup.Text, newFolderTags, documentGroup.NameTags, documentGroup.TextTags)));
+                    }
+
+                case "2":
+                    {
+                        Console.WriteLine(Environment.NewLine);
+                        Console.WriteLine("Input name.");
+                        string name = Console.ReadLine();
+                        if (string.IsNullOrWhiteSpace(name))
+                            return Task.FromResult((TaskReturnKind.Continue, documentGroup));
+
+                        string newFolder = $"{documentGroup.Folder}/{name}";
+
+                        return Task.FromResult((TaskReturnKind.Continue, new DocumentGroup(newFolder, documentGroup.Name, documentGroup.Text, documentGroup.FolderTags, documentGroup.NameTags, documentGroup.TextTags)));
+                    }
+
+                default:
+                    return Task.FromResult((TaskReturnKind.Exit, documentGroup));
+            }
+        }
+
         private Task<(TaskReturnKind, DocumentGroup)> TagName(DocumentGroup documentGroup)
         {
             Console.WriteLine(Environment.NewLine);
@@ -203,10 +233,9 @@ namespace CodeBuilderApp.Tasks.Functions
             string tag = Console.ReadLine();
 
             string name = documentGroup.Name.Replace(textPice, $"${tag}$");
-            var tags = documentGroup.NameTags ?? new List<TagElement>();
-            tags.Add(new TagElement(tag));
+            documentGroup.NameTags.Add(new TagElement(tag));
 
-            var newDocumentGroup = new DocumentGroup(documentGroup.Folder, name, documentGroup.Text, documentGroup.FolderTags, tags, documentGroup.TextTags);
+            var newDocumentGroup = new DocumentGroup(documentGroup.Folder, name, documentGroup.Text, documentGroup.FolderTags, documentGroup.NameTags, documentGroup.TextTags);
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine("Continue tagging?");
             Console.WriteLine(Environment.NewLine);

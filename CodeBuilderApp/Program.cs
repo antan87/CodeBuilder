@@ -18,6 +18,7 @@ namespace CodeBuilderApp
             bool exit = false;
             while (!exit)
             {
+                Console.WriteLine(Environment.NewLine);
                 Console.WriteLine("Options");
                 foreach (var task in this.Tasks)
                     Console.WriteLine($"{task.Key}: {task.Value.Name}");
@@ -25,12 +26,15 @@ namespace CodeBuilderApp
                 string taskIndex = Console.ReadLine();
                 if (!this.Tasks.ContainsKey(taskIndex))
                 {
+                    Console.WriteLine(Environment.NewLine);
                     Console.WriteLine("Wrong input try again!");
                     continue;
                 }
                 ITaskFunction function = this.Tasks[taskIndex];
+
                 await function.RunTask();
 
+                Console.WriteLine(Environment.NewLine);
                 Console.WriteLine("Continue Y/N?");
                 string continueRespone = Console.ReadLine();
                 if (continueRespone.ToLower() == "n")
@@ -40,7 +44,8 @@ namespace CodeBuilderApp
 
         private readonly Dictionary<string, ITaskFunction> Tasks = new Dictionary<string, ITaskFunction>()
         {
-            ["1"] = new CreateTemplatesTaskFunction()
+            ["1"] = new CreateTemplatesTaskFunction(),
+            ["2"] = new ApplyTemplatesTaskFunction()
         };
     }
 }
