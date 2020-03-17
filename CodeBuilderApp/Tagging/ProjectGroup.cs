@@ -11,8 +11,16 @@ namespace CodeBuilderApp.Tagging
             this.Documents = documents;
         }
 
+        public ProjectGroup(IList<DocumentGroup> documents, List<TagElement> tags)
+        {
+            this.Documents = documents;
+            this.Tags = tags;
+        }
+
         private ProjectGroup()
         {
         }
+
+        public List<TagElement> Tags { get; } = new List<TagElement>();
     }
 }

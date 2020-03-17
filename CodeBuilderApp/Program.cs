@@ -44,7 +44,7 @@ namespace CodeBuilderApp
 
         private readonly Dictionary<string, ITaskFunction> Tasks = new Dictionary<string, ITaskFunction>()
         {
-            ["1"] = new CreateTemplatesTaskFunction(),
+            ["1"] = new CreateTemplatesTaskFunctionV2(),
             ["2"] = new ApplyTemplatesTaskFunction()
         };
     }

@@ -1,7 +1,9 @@
-﻿using CodeBuilderApp.Tagging;
+﻿using CodeBuilderApp.Extensions;
+using CodeBuilderApp.Tagging;
 using CodeBuilderApp.Tasks.Interfaces;
 using CodeBuilderWorkspace.Workspace.Factory;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Text;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -32,11 +34,13 @@ namespace CodeBuilderApp.Tasks.Functions
             using var workspace = await new MSBuildWorkspaceFactory().GetWorkspace();
             Solution solution = await workspace.OpenSolutionAsync(solutionPath);
 
+            Console.WriteLine(Environment.NewLine);
             Console.WriteLine("Select project:");
             Project? project = await TaskExecutable.RunTask(CommonTaskFunctions.GetProjectTask, solution);
             if (project == null)
                 return;
 
+            Console.WriteLine(Environment.NewLine);
             Console.WriteLine("Create tags:");
             var tags = new List<TagElement>();
             await foreach (var tagElement in TaskExecutable.RunTask(this.CreateTags))
@@ -51,6 +55,11 @@ namespace CodeBuilderApp.Tasks.Functions
                 if (document != null)
                     documents.Add(document);
             }
+
+            ProjectGroup projectGroup = await ImplementsTags(documents, tags);
+            await TaskExecutable.RunTask(CommonTaskFunctions.SaveDocumentsTask, projectGroup);
+
+            workspace.CloseSolution();
         }
 
         private Task<(TaskReturnKind, TagElement?)> CreateTags()
@@ -90,8 +99,33 @@ namespace CodeBuilderApp.Tasks.Functions
             return Task.FromResult((TaskReturnKind.Exit, (TagElement?)element));
         }
 
-        private List<ProjectGroup> ImplementsTags(List<Document> documents, List<TagElement> tags)
+        private async Task<ProjectGroup> ImplementsTags(List<Document> documents, List<TagElement> tags)
+        {
+            IEnumerable<Task<DocumentGroup>> tasks = documents.Select(document => TagDocument(document, tags));
+            DocumentGroup[] documentGroups = await Task.WhenAll(tasks);
 
+            return new ProjectGroup(documentGroups, tags);
+        }
+
+        private async Task<DocumentGroup> TagDocument(Document document, List<TagElement> tags)
+        {
+            string folder = string.Join("/", document.Folders);
+            string name = document.Name;
+            SourceText sourceText = await document.GetTextAsync();
+            string text = sourceText.ToString();
+            var documentGroup = new DocumentGroup(folder, name, text);
+
+            foreach (TagElement tag in tags)
+            {
+                string newFolderText = documentGroup.Folder.ReplaceTextWithTag(tag.ReplaceText, tag.Tag);
+                string newNameText = documentGroup.Name.ReplaceTextWithTag(tag.ReplaceText, tag.Tag);
+                string newText = documentGroup.Text.ReplaceTextWithTag(tag.ReplaceText, tag.Tag);
+
+                documentGroup = new DocumentGroup(newFolderText, newNameText, newText);
+            }
+
+            return documentGroup;
+        }
 
         private Task<(TaskReturnKind, Document?)> SelectDocuments(Project project)
         {

@@ -1,10 +1,8 @@
-﻿using CodeBuilderApp.Common;
-using CodeBuilderApp.Tagging;
+﻿using CodeBuilderApp.Tagging;
 using CodeBuilderApp.Tasks.Interfaces;
 using CodeBuilderWorkspace.Workspace.Factory;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -82,32 +80,9 @@ namespace CodeBuilderApp.Tasks.Functions
                     documentGroups.Add(documentGroup);
 
             var projectGroup = new ProjectGroup(documentGroups);
-            await TaskExecutable.RunTask(SaveDocumentsTask, projectGroup);
+            await TaskExecutable.RunTask(CommonTaskFunctions.SaveDocumentsTask, projectGroup);
 
             workspace.CloseSolution();
-        }
-
-        private Task<TaskReturnKind> SaveDocumentsTask(ProjectGroup projectGroup)
-        {
-            Console.WriteLine(Environment.NewLine);
-            Console.WriteLine(Environment.NewLine);
-            Console.WriteLine("Select folder:");
-            string folderPath = Console.ReadLine();
-            if (!Directory.Exists(folderPath))
-            {
-                Console.WriteLine("Folder does not exists!");
-                return Task.FromResult(TaskReturnKind.Continue);
-            }
-
-            Console.WriteLine(Environment.NewLine);
-            Console.WriteLine("Select file name:");
-            string fileName = Console.ReadLine();
-
-            var json = JsonConvert.SerializeObject(projectGroup);
-
-            File.WriteAllText(@$"{folderPath}\{fileName}{FileExtensions.FileTemplateExtension}", json);
-
-            return Task.FromResult(TaskReturnKind.Exit);
         }
 
         private Task<(TaskReturnKind, DocumentGroup)> TagDocument(DocumentGroup documentGroup)
