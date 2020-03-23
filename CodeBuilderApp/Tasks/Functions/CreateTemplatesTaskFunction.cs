@@ -1,10 +1,8 @@
-﻿using CodeBuilderApp.Common;
-using CodeBuilderApp.Tagging;
+﻿using CodeBuilderApp.Tagging;
 using CodeBuilderApp.Tasks.Interfaces;
 using CodeBuilderWorkspace.Workspace.Factory;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -80,33 +78,11 @@ namespace CodeBuilderApp.Tasks.Functions
             await foreach (DocumentGroup? documentGroup in TaskExecutable.RunTask(GetDocumentTask, project))
                 if (documentGroup != null)
                     documentGroups.Add(documentGroup);
+
             var projectGroup = new ProjectGroup(documentGroups);
-            await TaskExecutable.RunTask(SaveDocumentsTask, projectGroup);
+            await TaskExecutable.RunTask(CommonTaskFunctions.SaveDocumentsTask, projectGroup);
 
             workspace.CloseSolution();
-        }
-
-        private Task<TaskReturnKind> SaveDocumentsTask(ProjectGroup projectGroup)
-        {
-            Console.WriteLine(Environment.NewLine);
-            Console.WriteLine(Environment.NewLine);
-            Console.WriteLine("Select folder:");
-            string folderPath = Console.ReadLine();
-            if (!Directory.Exists(folderPath))
-            {
-                Console.WriteLine("Folder does not exists!");
-                return Task.FromResult(TaskReturnKind.Continue);
-            }
-
-            Console.WriteLine(Environment.NewLine);
-            Console.WriteLine("Select file name:");
-            string fileName = Console.ReadLine();
-
-            var json = JsonConvert.SerializeObject(projectGroup);
-
-            File.WriteAllText(@$"{folderPath}\{fileName}{FileExtensions.FileTemplateExtension}", json);
-
-            return Task.FromResult(TaskReturnKind.Exit);
         }
 
         private Task<(TaskReturnKind, DocumentGroup)> TagDocument(DocumentGroup documentGroup)
@@ -114,6 +90,12 @@ namespace CodeBuilderApp.Tasks.Functions
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine(documentGroup.Text);
+
+            Console.WriteLine(Environment.NewLine);
+            Console.WriteLine("Tagg text y/n?");
+            string response = Console.ReadLine();
+            if (response == "n")
+                return Task.FromResult((TaskReturnKind.Exit, documentGroup));
 
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine("Text to be tagged.");
@@ -127,13 +109,13 @@ namespace CodeBuilderApp.Tasks.Functions
             string text = documentGroup.Text.ToString().Replace(textPice, $"${tag}$");
 
             var tags = documentGroup.TextTags ?? new List<TagElement>();
-            tags.Add(new TagElement(tag));
+            tags.Add(new TagElement(tag, text));
 
             var newDocumentGroup = new DocumentGroup(documentGroup.Folder, documentGroup.Name, text, documentGroup.FolderTags, documentGroup.NameTags, tags);
             Console.WriteLine(Environment.NewLine);
-            Console.WriteLine("Continue tagging?");
+            Console.WriteLine("Continue tagging y/n?");
             Console.WriteLine(Environment.NewLine);
-            string response = Console.ReadLine();
+            response = Console.ReadLine();
             if (response.ToLower() == "y")
                 return Task.FromResult((TaskReturnKind.Continue, newDocumentGroup));
 
@@ -147,6 +129,12 @@ namespace CodeBuilderApp.Tasks.Functions
             Console.WriteLine(documentGroup.Folder);
 
             Console.WriteLine(Environment.NewLine);
+            Console.WriteLine("Tagg folder y/n?");
+            string response = Console.ReadLine();
+            if (response == "n")
+                return Task.FromResult((TaskReturnKind.Exit, documentGroup));
+
+            Console.WriteLine(Environment.NewLine);
             Console.WriteLine("Folder to be tagged.");
             string textPice = Console.ReadLine();
 
@@ -157,13 +145,13 @@ namespace CodeBuilderApp.Tasks.Functions
 
             string folder = documentGroup.Folder.Replace(textPice, $"${tag}$");
             var tags = documentGroup.FolderTags ?? new List<TagElement>();
-            tags.Add(new TagElement(tag));
+            tags.Add(new TagElement(tag, folder));
 
             var newDocumentGroup = new DocumentGroup(folder, documentGroup.Name, documentGroup.Text, tags, documentGroup.NameTags, documentGroup.TextTags);
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine("Continue tagging?");
             Console.WriteLine(Environment.NewLine);
-            var response = Console.ReadLine();
+            response = Console.ReadLine();
             if (response.ToLower() == "y")
                 return Task.FromResult((TaskReturnKind.Continue, newDocumentGroup));
 
@@ -192,9 +180,9 @@ namespace CodeBuilderApp.Tasks.Functions
                         if (string.IsNullOrWhiteSpace(tag))
                             return Task.FromResult((TaskReturnKind.Continue, documentGroup));
 
-                        string newFolder = $"{(string.IsNullOrWhiteSpace(documentGroup.Folder) ? string.Empty : documentGroup.Folder + "/") }${tag}$";
+                        string newFolder = $"{(string.IsNullOrWhiteSpace(documentGroup.Folder) ? string.Empty : documentGroup.Folder + @"\") }${tag}$";
                         List<TagElement> newFolderTags = documentGroup.FolderTags;
-                        newFolderTags.Add(new TagElement(tag));
+                        newFolderTags.Add(new TagElement(tag, newFolder));
 
                         return Task.FromResult((TaskReturnKind.Continue, new DocumentGroup(newFolder, documentGroup.Name, documentGroup.Text, newFolderTags, documentGroup.NameTags, documentGroup.TextTags)));
                     }
@@ -207,7 +195,7 @@ namespace CodeBuilderApp.Tasks.Functions
                         if (string.IsNullOrWhiteSpace(name))
                             return Task.FromResult((TaskReturnKind.Continue, documentGroup));
 
-                        string newFolder = $"{documentGroup.Folder}/{name}";
+                        string newFolder = @$"{documentGroup.Folder}\{name}";
 
                         return Task.FromResult((TaskReturnKind.Continue, new DocumentGroup(newFolder, documentGroup.Name, documentGroup.Text, documentGroup.FolderTags, documentGroup.NameTags, documentGroup.TextTags)));
                     }
@@ -224,6 +212,11 @@ namespace CodeBuilderApp.Tasks.Functions
             Console.WriteLine(documentGroup.Name);
             Console.WriteLine(Environment.NewLine);
 
+            Console.WriteLine("Tagg name y/n?");
+            string response = Console.ReadLine();
+            if (response == "n")
+                return Task.FromResult((TaskReturnKind.Exit, documentGroup));
+
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine("File name to be tagged.");
             string textPice = Console.ReadLine();
@@ -233,13 +226,13 @@ namespace CodeBuilderApp.Tasks.Functions
             string tag = Console.ReadLine();
 
             string name = documentGroup.Name.Replace(textPice, $"${tag}$");
-            documentGroup.NameTags.Add(new TagElement(tag));
+            documentGroup.NameTags.Add(new TagElement(tag, name));
 
             var newDocumentGroup = new DocumentGroup(documentGroup.Folder, name, documentGroup.Text, documentGroup.FolderTags, documentGroup.NameTags, documentGroup.TextTags);
             Console.WriteLine(Environment.NewLine);
-            Console.WriteLine("Continue tagging?");
+            Console.WriteLine("Continue tagging y/n?");
             Console.WriteLine(Environment.NewLine);
-            var response = Console.ReadLine();
+            response = Console.ReadLine();
             if (response.ToLower() == "y")
                 return Task.FromResult((TaskReturnKind.Continue, newDocumentGroup));
 

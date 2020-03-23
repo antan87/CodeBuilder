@@ -37,6 +37,20 @@ namespace CodeBuilderApp.Tasks
             }
         }
 
+        internal static async IAsyncEnumerable<T?> RunTask<T>(Func<Task<(TaskReturnKind, T?)>> task) where T : class
+        {
+            bool exit = false;
+            while (!exit)
+            {
+                (TaskReturnKind, T?) result = await task();
+                if (result.Item1 == TaskReturnKind.Exit)
+                    exit = true;
+
+                if (result.Item2 != null)
+                    yield return result.Item2;
+            }
+        }
+
         internal static async Task<T> RunTask<T>(Func<T, T, Task<(TaskReturnKind, T)>> task, T input, T input2) where T : class
         {
             bool exit = false;
