@@ -50,7 +50,7 @@ namespace CodeBuilderApp.Tasks.Functions
             }
 
             var documents = new List<Document>();
-            await foreach (var document in TaskExecutable.RunTask(this.SelectDocuments, project))
+            await foreach (var document in TaskExecutable.RunTask(this.SelectDocuments, project.Documents.Where(whereDocument => !documents.Contains(whereDocument))))
             {
                 if (document != null)
                     documents.Add(document);
@@ -127,14 +127,14 @@ namespace CodeBuilderApp.Tasks.Functions
             return documentGroup;
         }
 
-        private Task<(TaskReturnKind, Document?)> SelectDocuments(Project project)
+        private Task<(TaskReturnKind, Document?)> SelectDocuments(IEnumerable<Document> projectDocuments)
         {
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine("Select document:");
             Dictionary<string, Document> documents = new Dictionary<string, Document>();
             int index = 1;
-            foreach (Document document in project.Documents)
+            foreach (Document document in projectDocuments)
             {
                 Console.WriteLine($"{index}: {(document.Folders.Any() ? string.Join(@"\", document.Folders) + @"\" : string.Empty)}{document.Name}");
 
@@ -142,14 +142,17 @@ namespace CodeBuilderApp.Tasks.Functions
                 index++;
             }
 
+            Console.WriteLine(Environment.NewLine);
             string documentIndex = Console.ReadLine();
             if (!documents.ContainsKey(documentIndex))
             {
                 Console.WriteLine("Wrong input try again!");
                 return Task.FromResult((TaskReturnKind.Continue, (Document?)null));
             }
+
             Document selecteDocument = documents[documentIndex];
             Console.WriteLine(Environment.NewLine);
+
             Console.WriteLine("Continue selecting documents y/n?");
             string response = Console.ReadLine();
             if (response == "y")
