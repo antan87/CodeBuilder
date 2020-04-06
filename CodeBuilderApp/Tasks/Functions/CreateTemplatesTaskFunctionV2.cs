@@ -73,9 +73,19 @@ namespace CodeBuilderApp.Tasks.Functions
 
             string json = await File.ReadAllTextAsync(tagFilePath);
 
-            IEnumerable<TagElement> tags = JsonConvert.DeserializeObject<TagElement[]>(json);
+            try
+            {
+                IEnumerable<TagElement> tags = JsonConvert.DeserializeObject<TagElement[]>(json);
+                return (TaskReturnKind.Exit, tags);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Somethin went wrong!!");
+                Console.WriteLine(Environment.NewLine);
+                Console.WriteLine(e.Message);
 
-            return (TaskReturnKind.Exit, tags);
+                return (TaskReturnKind.Continue, default);
+            }
         }
 
         public async Task RunTask()
