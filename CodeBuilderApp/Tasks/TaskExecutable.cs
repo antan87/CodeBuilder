@@ -23,7 +23,7 @@ namespace CodeBuilderApp.Tasks
             return value;
         }
 
-        internal static async IAsyncEnumerable<T?> RunTask<T, K>(Func<K, Task<(TaskReturnKind, T?)>> task, K input) where T : class
+        internal static async IAsyncEnumerable<T?> RunTaskAsyncEnumerable<T, K>(Func<K, Task<(TaskReturnKind, T?)>> task, K input) where T : class
         {
             bool exit = false;
             while (!exit)
@@ -37,7 +37,7 @@ namespace CodeBuilderApp.Tasks
             }
         }
 
-        internal static async IAsyncEnumerable<T?> RunTask<T>(Func<Task<(TaskReturnKind, T?)>> task) where T : class
+        internal static async IAsyncEnumerable<T?> RunTaskAsyncEnumerable<T>(Func<Task<(TaskReturnKind, T?)>> task) where T : class
         {
             bool exit = false;
             while (!exit)
@@ -79,6 +79,38 @@ namespace CodeBuilderApp.Tasks
             }
 
             return input;
+        }
+
+        internal static async Task<T?> RunTask<T>(Func<Task<(TaskReturnKind, T?)>> task) where T : class
+        {
+            bool exit = false;
+            T? output = default;
+            while (!exit)
+            {
+                (TaskReturnKind, T?) result = await task();
+                if (result.Item1 == TaskReturnKind.Exit)
+                    exit = true;
+
+                output = result.Item2;
+            }
+
+            return output;
+        }
+
+        internal static async Task<T?> RunTask<T>(Func<Task<(TaskReturnKind, T?)>> task) where T : struct
+        {
+            bool exit = false;
+            T? output = default;
+            while (!exit)
+            {
+                (TaskReturnKind, T?) result = await task();
+                if (result.Item1 == TaskReturnKind.Exit)
+                    exit = true;
+
+                output = result.Item2;
+            }
+
+            return output;
         }
 
         internal static async Task RunTask<T>(Func<T, Task<TaskReturnKind>> task, T input) where T : class

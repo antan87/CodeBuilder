@@ -78,7 +78,7 @@ namespace CodeBuilderApp.Tasks.Functions
             using MSBuildWorkspace workspace = await new MSBuildWorkspaceFactory().GetWorkspace();
             Solution solution = await workspace.OpenSolutionAsync(solutionPath);
 
-            await foreach (var result in TaskExecutable.RunTask(this.SelectProjectTask, solution))
+            await foreach (var result in TaskExecutable.RunTaskAsyncEnumerable(this.SelectProjectTask, solution))
             {
                 if (result == null || result.Project == null)
                     continue;
@@ -97,7 +97,7 @@ namespace CodeBuilderApp.Tasks.Functions
             if (project == null)
                 return (TaskReturnKind.Continue, null);
 
-            await foreach (ProjectGroup? projectGroup in TaskExecutable.RunTask(this.SelectTemplateFileTask, project))
+            await foreach (ProjectGroup? projectGroup in TaskExecutable.RunTaskAsyncEnumerable(this.SelectTemplateFileTask, project))
             {
                 if (projectGroup == null)
                     continue;

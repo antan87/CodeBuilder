@@ -117,7 +117,7 @@ namespace CodeBuilderApp.Tasks.Functions
             using MSBuildWorkspace workspace = await new MSBuildWorkspaceFactory().GetWorkspace();
             Solution solution = await workspace.OpenSolutionAsync(solutionPath);
 
-            await foreach (var test in TaskExecutable.RunTask(this.SelectProjectTask, solution))
+            await foreach (var test in TaskExecutable.RunTaskAsyncEnumerable(this.SelectProjectTask, solution))
             {
                 if (test != null)
                     workspace.TryApplyChanges(test.Project.Solution);
@@ -134,7 +134,7 @@ namespace CodeBuilderApp.Tasks.Functions
             if (project == null)
                 return (TaskReturnKind.Continue, default);
 
-            await foreach (ProjectGroup? projectGroup in TaskExecutable.RunTask(this.SelectTemplateFileTask, project))
+            await foreach (ProjectGroup? projectGroup in TaskExecutable.RunTaskAsyncEnumerable(this.SelectTemplateFileTask, project))
             {
                 if (projectGroup == null)
                     continue;

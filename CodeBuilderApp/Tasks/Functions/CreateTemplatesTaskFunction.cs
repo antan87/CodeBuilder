@@ -75,7 +75,7 @@ namespace CodeBuilderApp.Tasks.Functions
                 return;
 
             List<DocumentGroup> documentGroups = new List<DocumentGroup>();
-            await foreach (DocumentGroup? documentGroup in TaskExecutable.RunTask(GetDocumentTask, project))
+            await foreach (DocumentGroup? documentGroup in TaskExecutable.RunTaskAsyncEnumerable(GetDocumentTask, project))
                 if (documentGroup != null)
                     documentGroups.Add(documentGroup);
 
