@@ -1,11 +1,9 @@
 ﻿using CodeBuilderApp.Common;
-using CodeBuilderApp.Extensions;
 using CodeBuilderApp.Tagging;
 using CodeBuilderApp.Tasks.Interfaces;
 using CodeBuilderWorkspace.Workspace.Factory;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MSBuild;
-using Microsoft.CodeAnalysis.Text;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -121,13 +119,13 @@ namespace CodeBuilderApp.Tasks.Functions
 
             IEnumerable<TagElement> tags = await this.GetTagElements(tagOption.Value);
             var documents = new List<Document>();
-            await foreach (var document in TaskExecutable.RunTaskAsyncEnumerable(this.SelectDocuments, project.Documents.Where(whereDocument => !documents.Contains(whereDocument))))
+            await foreach (var document in TaskExecutable.RunTaskAsyncEnumerable(CommonTaskFunctions.SelectDocuments, project.Documents.Where(whereDocument => !documents.Contains(whereDocument))))
             {
                 if (document != null)
                     documents.Add(document);
             }
 
-            TagProjectGroup projectGroup = await ImplementsTags(documents, tags);
+            TagProjectGroup projectGroup = await CommonTaskFunctions.ImplementsTags(documents, tags);
             await TaskExecutable.RunTask(CommonTaskFunctions.SaveDocumentsTask, projectGroup);
 
             workspace.CloseSolution();
@@ -160,48 +158,6 @@ namespace CodeBuilderApp.Tasks.Functions
             return Enumerable.Empty<TagElement>();
         }
 
-        private async Task<TagProjectGroup> ImplementsTags(List<Document> documents, IEnumerable<TagElement> tags)
-        {
-            IEnumerable<Task<TagDocumentGroup>> tasks = documents.Select(document => TagDocument(document, tags));
-            TagDocumentGroup[] documentGroups = await Task.WhenAll(tasks);
-
-            return new TagProjectGroup(documentGroups, tags);
-        }
-
-        private Task<(TaskReturnKind, Document?)> SelectDocuments(IEnumerable<Document> projectDocuments)
-        {
-            Console.WriteLine(Environment.NewLine);
-            Console.WriteLine(Environment.NewLine);
-            Console.WriteLine("Select document:");
-            Dictionary<string, Document> documents = new Dictionary<string, Document>();
-            int index = 1;
-            foreach (Document document in projectDocuments)
-            {
-                Console.WriteLine($"{index}: {(document.Folders.Any() ? string.Join(@"\", document.Folders) + @"\" : string.Empty)}{document.Name}");
-
-                documents[index.ToString()] = document;
-                index++;
-            }
-
-            Console.WriteLine(Environment.NewLine);
-            string documentIndex = Console.ReadLine();
-            if (!documents.ContainsKey(documentIndex))
-            {
-                Console.WriteLine("Wrong input try again!");
-                return Task.FromResult((TaskReturnKind.Continue, (Document?)null));
-            }
-
-            Document selecteDocument = documents[documentIndex];
-            Console.WriteLine(Environment.NewLine);
-
-            Console.WriteLine("Continue selecting documents y/n?");
-            string response = Console.ReadLine();
-            if (response == "y")
-                return Task.FromResult((TaskReturnKind.Continue, (Document?)selecteDocument));
-
-            return Task.FromResult((TaskReturnKind.Exit, (Document?)selecteDocument));
-        }
-
         private Task<(TaskReturnKind, TagOption?)> SelectTagOption()
         {
             Console.WriteLine(Environment.NewLine);
@@ -223,26 +179,6 @@ namespace CodeBuilderApp.Tasks.Functions
             }
 
             return Task.FromResult((TaskReturnKind.Exit, enumOption));
-        }
-
-        private async Task<TagDocumentGroup> TagDocument(Document document, IEnumerable<TagElement> tags)
-        {
-            string folder = string.Join("/", document.Folders);
-            string name = document.Name;
-            SourceText sourceText = await document.GetTextAsync();
-            string text = sourceText.ToString();
-            var documentGroup = new TagDocumentGroup(folder, name, text);
-
-            foreach (TagElement tag in tags)
-            {
-                string newFolderText = documentGroup.Folder.ReplaceTextWithTag(tag.ReplaceText, tag.Tag);
-                string newNameText = documentGroup.Name.ReplaceTextWithTag(tag.ReplaceText, tag.Tag);
-                string newText = documentGroup.Text.ReplaceTextWithTag(tag.ReplaceText, tag.Tag);
-
-                documentGroup = new TagDocumentGroup(newFolderText, newNameText, newText);
-            }
-
-            return documentGroup;
         }
 
         private enum TagOption
