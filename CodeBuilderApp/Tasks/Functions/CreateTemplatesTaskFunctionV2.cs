@@ -80,7 +80,7 @@ namespace CodeBuilderApp.Tasks.Functions
             }
             catch (Exception e)
             {
-                Console.WriteLine("Somethin went wrong!!");
+                Console.WriteLine("Something went wrong!!");
                 Console.WriteLine(Environment.NewLine);
                 Console.WriteLine(e.Message);
 
