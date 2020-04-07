@@ -127,7 +127,7 @@ namespace CodeBuilderApp.Tasks.Functions
                     documents.Add(document);
             }
 
-            ProjectGroup projectGroup = await ImplementsTags(documents, tags);
+            TagProjectGroup projectGroup = await ImplementsTags(documents, tags);
             await TaskExecutable.RunTask(CommonTaskFunctions.SaveDocumentsTask, projectGroup);
 
             workspace.CloseSolution();
@@ -160,12 +160,12 @@ namespace CodeBuilderApp.Tasks.Functions
             return Enumerable.Empty<TagElement>();
         }
 
-        private async Task<ProjectGroup> ImplementsTags(List<Document> documents, IEnumerable<TagElement> tags)
+        private async Task<TagProjectGroup> ImplementsTags(List<Document> documents, IEnumerable<TagElement> tags)
         {
-            IEnumerable<Task<DocumentGroup>> tasks = documents.Select(document => TagDocument(document, tags));
-            DocumentGroup[] documentGroups = await Task.WhenAll(tasks);
+            IEnumerable<Task<TagDocumentGroup>> tasks = documents.Select(document => TagDocument(document, tags));
+            TagDocumentGroup[] documentGroups = await Task.WhenAll(tasks);
 
-            return new ProjectGroup(documentGroups, tags);
+            return new TagProjectGroup(documentGroups, tags);
         }
 
         private Task<(TaskReturnKind, Document?)> SelectDocuments(IEnumerable<Document> projectDocuments)
@@ -225,13 +225,13 @@ namespace CodeBuilderApp.Tasks.Functions
             return Task.FromResult((TaskReturnKind.Exit, enumOption));
         }
 
-        private async Task<DocumentGroup> TagDocument(Document document, IEnumerable<TagElement> tags)
+        private async Task<TagDocumentGroup> TagDocument(Document document, IEnumerable<TagElement> tags)
         {
             string folder = string.Join("/", document.Folders);
             string name = document.Name;
             SourceText sourceText = await document.GetTextAsync();
             string text = sourceText.ToString();
-            var documentGroup = new DocumentGroup(folder, name, text);
+            var documentGroup = new TagDocumentGroup(folder, name, text);
 
             foreach (TagElement tag in tags)
             {
@@ -239,7 +239,7 @@ namespace CodeBuilderApp.Tasks.Functions
                 string newNameText = documentGroup.Name.ReplaceTextWithTag(tag.ReplaceText, tag.Tag);
                 string newText = documentGroup.Text.ReplaceTextWithTag(tag.ReplaceText, tag.Tag);
 
-                documentGroup = new DocumentGroup(newFolderText, newNameText, newText);
+                documentGroup = new TagDocumentGroup(newFolderText, newNameText, newText);
             }
 
             return documentGroup;

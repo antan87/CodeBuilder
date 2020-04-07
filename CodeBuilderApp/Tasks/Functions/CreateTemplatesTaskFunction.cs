@@ -13,7 +13,7 @@ namespace CodeBuilderApp.Tasks.Functions
 {
     internal class CreateTemplatesTaskFunction : ITaskFunction
     {
-        private async Task<(TaskReturnKind, DocumentGroup?)> GetDocumentTask(Project project)
+        private async Task<(TaskReturnKind, TagDocumentGroup?)> GetDocumentTask(Project project)
         {
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine(Environment.NewLine);
@@ -32,19 +32,19 @@ namespace CodeBuilderApp.Tasks.Functions
             if (!documents.ContainsKey(documentIndex))
             {
                 Console.WriteLine("Wrong input try again!");
-                return (TaskReturnKind.Continue, (DocumentGroup?)null);
+                return (TaskReturnKind.Continue, (TagDocumentGroup?)null);
             }
             Document selecteDocument = documents[documentIndex];
             SourceText text = await selecteDocument.GetTextAsync();
             string folder = string.Join("/", selecteDocument.Folders);
-            DocumentGroup documentGroup = new DocumentGroup(folder, selecteDocument.Name, text.ToString());
+            TagDocumentGroup documentGroup = new TagDocumentGroup(folder, selecteDocument.Name, text.ToString());
             if (!string.IsNullOrWhiteSpace(documentGroup.Folder))
-                documentGroup = await TaskExecutable.RunTask<DocumentGroup>(TagFolder, documentGroup);
+                documentGroup = await TaskExecutable.RunTask<TagDocumentGroup>(TagFolder, documentGroup);
             else
-                documentGroup = await TaskExecutable.RunTask<DocumentGroup>(TagEmptyFolder, documentGroup);
+                documentGroup = await TaskExecutable.RunTask<TagDocumentGroup>(TagEmptyFolder, documentGroup);
 
-            documentGroup = await TaskExecutable.RunTask<DocumentGroup>(TagName, documentGroup);
-            documentGroup = await TaskExecutable.RunTask<DocumentGroup>(TagDocument, documentGroup);
+            documentGroup = await TaskExecutable.RunTask<TagDocumentGroup>(TagName, documentGroup);
+            documentGroup = await TaskExecutable.RunTask<TagDocumentGroup>(TagDocument, documentGroup);
 
             return (TaskReturnKind.Exit, documentGroup);
         }
@@ -74,18 +74,18 @@ namespace CodeBuilderApp.Tasks.Functions
             if (project == null)
                 return;
 
-            List<DocumentGroup> documentGroups = new List<DocumentGroup>();
-            await foreach (DocumentGroup? documentGroup in TaskExecutable.RunTaskAsyncEnumerable(GetDocumentTask, project))
+            List<TagDocumentGroup> documentGroups = new List<TagDocumentGroup>();
+            await foreach (TagDocumentGroup? documentGroup in TaskExecutable.RunTaskAsyncEnumerable(GetDocumentTask, project))
                 if (documentGroup != null)
                     documentGroups.Add(documentGroup);
 
-            var projectGroup = new ProjectGroup(documentGroups);
+            var projectGroup = new TagProjectGroup(documentGroups);
             await TaskExecutable.RunTask(CommonTaskFunctions.SaveDocumentsTask, projectGroup);
 
             workspace.CloseSolution();
         }
 
-        private Task<(TaskReturnKind, DocumentGroup)> TagDocument(DocumentGroup documentGroup)
+        private Task<(TaskReturnKind, TagDocumentGroup)> TagDocument(TagDocumentGroup documentGroup)
         {
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine(Environment.NewLine);
@@ -111,7 +111,7 @@ namespace CodeBuilderApp.Tasks.Functions
             var tags = documentGroup.TextTags ?? new List<TagElement>();
             tags.Add(new TagElement(tag, text));
 
-            var newDocumentGroup = new DocumentGroup(documentGroup.Folder, documentGroup.Name, text, documentGroup.FolderTags, documentGroup.NameTags, tags);
+            var newDocumentGroup = new TagDocumentGroup(documentGroup.Folder, documentGroup.Name, text, documentGroup.FolderTags, documentGroup.NameTags, tags);
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine("Continue tagging y/n?");
             Console.WriteLine(Environment.NewLine);
@@ -122,7 +122,7 @@ namespace CodeBuilderApp.Tasks.Functions
             return Task.FromResult((TaskReturnKind.Exit, newDocumentGroup));
         }
 
-        private Task<(TaskReturnKind, DocumentGroup)> TagFolder(DocumentGroup documentGroup)
+        private Task<(TaskReturnKind, TagDocumentGroup)> TagFolder(TagDocumentGroup documentGroup)
         {
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine(Environment.NewLine);
@@ -147,7 +147,7 @@ namespace CodeBuilderApp.Tasks.Functions
             var tags = documentGroup.FolderTags ?? new List<TagElement>();
             tags.Add(new TagElement(tag, folder));
 
-            var newDocumentGroup = new DocumentGroup(folder, documentGroup.Name, documentGroup.Text, tags, documentGroup.NameTags, documentGroup.TextTags);
+            var newDocumentGroup = new TagDocumentGroup(folder, documentGroup.Name, documentGroup.Text, tags, documentGroup.NameTags, documentGroup.TextTags);
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine("Continue tagging?");
             Console.WriteLine(Environment.NewLine);
@@ -158,7 +158,7 @@ namespace CodeBuilderApp.Tasks.Functions
             return Task.FromResult((TaskReturnKind.Exit, newDocumentGroup));
         }
 
-        private Task<(TaskReturnKind, DocumentGroup)> TagEmptyFolder(DocumentGroup documentGroup)
+        private Task<(TaskReturnKind, TagDocumentGroup)> TagEmptyFolder(TagDocumentGroup documentGroup)
         {
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine(Environment.NewLine);
@@ -184,7 +184,7 @@ namespace CodeBuilderApp.Tasks.Functions
                         List<TagElement> newFolderTags = documentGroup.FolderTags;
                         newFolderTags.Add(new TagElement(tag, newFolder));
 
-                        return Task.FromResult((TaskReturnKind.Continue, new DocumentGroup(newFolder, documentGroup.Name, documentGroup.Text, newFolderTags, documentGroup.NameTags, documentGroup.TextTags)));
+                        return Task.FromResult((TaskReturnKind.Continue, new TagDocumentGroup(newFolder, documentGroup.Name, documentGroup.Text, newFolderTags, documentGroup.NameTags, documentGroup.TextTags)));
                     }
 
                 case "2":
@@ -197,7 +197,7 @@ namespace CodeBuilderApp.Tasks.Functions
 
                         string newFolder = @$"{documentGroup.Folder}\{name}";
 
-                        return Task.FromResult((TaskReturnKind.Continue, new DocumentGroup(newFolder, documentGroup.Name, documentGroup.Text, documentGroup.FolderTags, documentGroup.NameTags, documentGroup.TextTags)));
+                        return Task.FromResult((TaskReturnKind.Continue, new TagDocumentGroup(newFolder, documentGroup.Name, documentGroup.Text, documentGroup.FolderTags, documentGroup.NameTags, documentGroup.TextTags)));
                     }
 
                 default:
@@ -205,7 +205,7 @@ namespace CodeBuilderApp.Tasks.Functions
             }
         }
 
-        private Task<(TaskReturnKind, DocumentGroup)> TagName(DocumentGroup documentGroup)
+        private Task<(TaskReturnKind, TagDocumentGroup)> TagName(TagDocumentGroup documentGroup)
         {
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine(Environment.NewLine);
@@ -228,7 +228,7 @@ namespace CodeBuilderApp.Tasks.Functions
             string name = documentGroup.Name.Replace(textPice, $"${tag}$");
             documentGroup.NameTags.Add(new TagElement(tag, name));
 
-            var newDocumentGroup = new DocumentGroup(documentGroup.Folder, name, documentGroup.Text, documentGroup.FolderTags, documentGroup.NameTags, documentGroup.TextTags);
+            var newDocumentGroup = new TagDocumentGroup(documentGroup.Folder, name, documentGroup.Text, documentGroup.FolderTags, documentGroup.NameTags, documentGroup.TextTags);
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine("Continue tagging y/n?");
             Console.WriteLine(Environment.NewLine);

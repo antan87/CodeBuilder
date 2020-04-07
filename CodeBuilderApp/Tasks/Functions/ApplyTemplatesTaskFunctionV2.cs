@@ -10,6 +10,7 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace CodeBuilderApp.Tasks.Functions
@@ -18,7 +19,25 @@ namespace CodeBuilderApp.Tasks.Functions
     {
         public string Name => "Apply templates";
 
-        private DocumentGroup ReplaceDocumentTags(DocumentGroup documentGroup, IEnumerable<(string tag, string newContent)> tags)
+        private async Task<IEnumerable<CreateDocumentGroup>> GetDocumentsToCreate(TagOption option, IEnumerable<TagElement> tags)
+        {
+            switch (option)
+            {
+                case TagOption.ReplaceTags:
+                    return this.ReplaceTags(tags);
+
+                case TagOption.LoadReplacedTags:
+                    IEnumerable<CreateDocumentGroup>? loadedTags = await TaskExecutable.RunTask(this.LoadReplacedTags);
+                    if (loadedTags == null)
+                        return Enumerable.Empty<CreateDocumentGroup>();
+
+                    return loadedTags;
+            }
+
+            return Enumerable.Empty<CreateDocumentGroup>();
+        }
+
+        private TagDocumentGroup ReplaceDocumentTags(TagDocumentGroup documentGroup, IEnumerable<ReplacedTagElement> tags)
         {
             documentGroup = this.ReplaceFolderTags(documentGroup, tags);
             documentGroup = this.ReplaceNameTags(documentGroup, tags);
@@ -27,34 +46,34 @@ namespace CodeBuilderApp.Tasks.Functions
             return documentGroup;
         }
 
-        private DocumentGroup ReplaceFolderTags(DocumentGroup documentGroup, IEnumerable<(string tag, string newContent)> tags)
+        private TagDocumentGroup ReplaceFolderTags(TagDocumentGroup documentGroup, IEnumerable<ReplacedTagElement> tags)
         {
-            foreach ((string tag, string newContent) tag in tags)
+            foreach (ReplacedTagElement tag in tags)
             {
-                string replacedFolderText = documentGroup.Folder.ReplaceTagWithText(tag.newContent, tag.tag);
-                documentGroup = new DocumentGroup(replacedFolderText, documentGroup.Name, documentGroup.Text);
+                string replacedFolderText = documentGroup.Folder.ReplaceTagWithText(tag.NewContent, tag.Tag);
+                documentGroup = new TagDocumentGroup(replacedFolderText, documentGroup.Name, documentGroup.Text);
             }
 
             return documentGroup;
         }
 
-        private DocumentGroup ReplaceNameTags(DocumentGroup documentGroup, IEnumerable<(string tag, string newContent)> tags)
+        private TagDocumentGroup ReplaceNameTags(TagDocumentGroup documentGroup, IEnumerable<ReplacedTagElement> tags)
         {
-            foreach ((string tag, string newContent) tag in tags)
+            foreach (ReplacedTagElement tag in tags)
             {
-                string replacedNameText = documentGroup.Name.ReplaceTagWithText(tag.newContent, tag.tag);
-                documentGroup = new DocumentGroup(documentGroup.Folder, replacedNameText, documentGroup.Text);
+                string replacedNameText = documentGroup.Name.ReplaceTagWithText(tag.NewContent, tag.Tag);
+                documentGroup = new TagDocumentGroup(documentGroup.Folder, replacedNameText, documentGroup.Text);
             }
 
             return documentGroup;
         }
 
-        private DocumentGroup ReplaceTextTags(DocumentGroup documentGroup, IEnumerable<(string tag, string newContent)> tags)
+        private TagDocumentGroup ReplaceTextTags(TagDocumentGroup documentGroup, IEnumerable<ReplacedTagElement> tags)
         {
-            foreach ((string tag, string newContent) tag in tags)
+            foreach (ReplacedTagElement tag in tags)
             {
-                string replaceText = documentGroup.Text.ReplaceTagWithText(tag.newContent, tag.tag);
-                documentGroup = new DocumentGroup(documentGroup.Folder, documentGroup.Name, replaceText);
+                string replaceText = documentGroup.Text.ReplaceTagWithText(tag.NewContent, tag.Tag);
+                documentGroup = new TagDocumentGroup(documentGroup.Folder, documentGroup.Name, replaceText);
             }
 
             return documentGroup;
@@ -89,7 +108,7 @@ namespace CodeBuilderApp.Tasks.Functions
             workspace.CloseSolution();
         }
 
-        private async Task<(TaskReturnKind, Test?)> SelectProjectTask(Solution solution)
+        private async Task<(TaskReturnKind, CreateProjectGroup?)> SelectProjectTask(Solution solution)
         {
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine("Select project:");
@@ -97,39 +116,47 @@ namespace CodeBuilderApp.Tasks.Functions
             if (project == null)
                 return (TaskReturnKind.Continue, null);
 
-            await foreach (ProjectGroup? projectGroup in TaskExecutable.RunTaskAsyncEnumerable(this.SelectTemplateFileTask, project))
+            await foreach (TagProjectGroup? projectGroup in TaskExecutable.RunTaskAsyncEnumerable(this.SelectTemplateFileTask, project))
             {
                 if (projectGroup == null)
                     continue;
 
-                IEnumerable<(string tag, string newContent)> replacedTags = this.ReplaceTags(projectGroup.Tags);
+                Console.WriteLine(Environment.NewLine);
+                TagOption? tagOption = await TaskExecutable.RunTask(this.SelectTagOption);
+                if (!tagOption.HasValue)
+                    return (TaskReturnKind.Exit, null);
 
+                IEnumerable<CreateDocumentGroup> createDocuments = await this.GetDocumentsToCreate(tagOption.Value, projectGroup.Tags);
                 List<Document> documents = new List<Document>();
-                foreach (DocumentGroup documentGroup in projectGroup.Documents)
+                foreach (CreateDocumentGroup createDocument in createDocuments)
                 {
-                    DocumentGroup newDocumentGroup = this.ReplaceDocumentTags(documentGroup, replacedTags);
-                    Document? newDocument = this.AppendDocumentToProject(project, newDocumentGroup);
-                    if (newDocument != null)
+                    foreach (TagDocumentGroup documentGroup in projectGroup.Documents)
                     {
-                        project = newDocument.Project;
-                        documents.Add(newDocument);
+                        TagDocumentGroup newDocumentGroup = this.ReplaceDocumentTags(documentGroup, createDocument.ReplacedTags);
+                        Document? newDocument = this.AppendDocumentToProject(project, newDocumentGroup);
+                        if (newDocument != null)
+                        {
+                            project = newDocument.Project;
+                            documents.Add(newDocument);
+                        }
                     }
                 }
 
-                var ss = new Test { Project = project, Documents = documents };
-                return (TaskReturnKind.Continue, ss);
+                var createProjectGroup = new CreateProjectGroup(project, documents);
+
+                return (TaskReturnKind.Continue, createProjectGroup);
             }
 
             return (TaskReturnKind.Exit, null);
         }
 
-        private List<(string tag, string newContent)> ReplaceTags(IEnumerable<TagElement> tagElements)
+        private IEnumerable<CreateDocumentGroup> ReplaceTags(IEnumerable<TagElement> tagElements)
         {
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine("Replace tags:");
 
-            var list = new List<(string tag, string newContent)>();
+            var list = new List<ReplacedTagElement>();
             foreach (TagElement element in tagElements)
             {
                 Console.WriteLine(Environment.NewLine);
@@ -137,13 +164,13 @@ namespace CodeBuilderApp.Tasks.Functions
                 Console.WriteLine(Environment.NewLine);
                 Console.WriteLine($"Input text to replace tag with.");
                 string newContent = Console.ReadLine();
-                list.Add((element.Tag, newContent));
+                list.Add(new ReplacedTagElement(element.Tag, newContent));
             }
 
-            return list;
+            return new List<CreateDocumentGroup> { new CreateDocumentGroup(list) };
         }
 
-        private Document? AppendDocumentToProject(Project project, DocumentGroup documentGroup)
+        private Document? AppendDocumentToProject(Project project, TagDocumentGroup documentGroup)
         {
             SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(documentGroup.Text);
             if (syntaxTree.TryGetRoot(out SyntaxNode node))
@@ -152,7 +179,7 @@ namespace CodeBuilderApp.Tasks.Functions
             return null;
         }
 
-        private async Task<(TaskReturnKind, ProjectGroup?)> SelectTemplateFileTask(Project project)
+        private async Task<(TaskReturnKind, TagProjectGroup?)> SelectTemplateFileTask(Project project)
         {
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine("Select template file:");
@@ -169,15 +196,70 @@ namespace CodeBuilderApp.Tasks.Functions
 
             string json = await File.ReadAllTextAsync(templateFilePath);
 
-            ProjectGroup projectGroup = JsonConvert.DeserializeObject<ProjectGroup>(json);
+            TagProjectGroup projectGroup = JsonConvert.DeserializeObject<TagProjectGroup>(json);
 
             return (TaskReturnKind.Exit, projectGroup);
         }
 
-        private sealed class Test
+        private Task<(TaskReturnKind, TagOption?)> SelectTagOption()
         {
-            public Project? Project { get; set; }
-            public List<Document> Documents { get; set; } = new List<Document>();
+            Console.WriteLine(Environment.NewLine);
+            Console.WriteLine(Environment.NewLine);
+            Console.WriteLine("Select tag option:");
+            Console.WriteLine(Environment.NewLine);
+
+            Console.WriteLine($"{(int)TagOption.ReplaceTags}: Replace tags");
+            Console.WriteLine($"{(int)TagOption.LoadReplacedTags}: Load replaced tags");
+            Console.WriteLine(Environment.NewLine);
+
+            string selectedOption = Console.ReadLine();
+            TagOption? enumOption = Enum.Parse<TagOption>(selectedOption);
+            if (!enumOption.HasValue)
+            {
+                Console.WriteLine("Wrong input!");
+                Console.WriteLine(Environment.NewLine);
+                return Task.FromResult((TaskReturnKind.Continue, (TagOption?)default));
+            }
+
+            return Task.FromResult((TaskReturnKind.Exit, enumOption));
+        }
+
+        private async Task<(TaskReturnKind, IEnumerable<CreateDocumentGroup>?)> LoadReplacedTags()
+        {
+            Console.WriteLine(Environment.NewLine);
+            Console.WriteLine(Environment.NewLine);
+            Console.WriteLine("Select replaced tag file to load:");
+            Console.WriteLine(Environment.NewLine);
+
+            Console.WriteLine(Environment.NewLine);
+            string tagFilePath = Console.ReadLine();
+            if (!File.Exists(tagFilePath) || Path.GetExtension(tagFilePath) != FileExtensions.TagFileTemplateExtension)
+            {
+                Console.WriteLine("Wrong file input.");
+                return (TaskReturnKind.Continue, default);
+            }
+
+            string json = await File.ReadAllTextAsync(tagFilePath);
+
+            try
+            {
+                IEnumerable<CreateDocumentGroup> tags = JsonConvert.DeserializeObject<CreateDocumentGroup[]>(json);
+                return (TaskReturnKind.Exit, tags);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Somethin went wrong!!");
+                Console.WriteLine(Environment.NewLine);
+                Console.WriteLine(e.Message);
+
+                return (TaskReturnKind.Continue, default);
+            }
+        }
+
+        private enum TagOption
+        {
+            ReplaceTags = 0,
+            LoadReplacedTags = 1
         }
     }
 }

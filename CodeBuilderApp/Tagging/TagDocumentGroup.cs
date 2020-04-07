@@ -2,9 +2,9 @@
 
 namespace CodeBuilderApp.Tagging
 {
-    public sealed class DocumentGroup
+    public sealed class TagDocumentGroup
     {
-        public DocumentGroup(string folder, string name, string text, List<TagElement> folderTags, List<TagElement> nameTags, List<TagElement> textTags)
+        public TagDocumentGroup(string folder, string name, string text, List<TagElement> folderTags, List<TagElement> nameTags, List<TagElement> textTags)
         {
             this.Folder = folder;
             this.Name = name;
@@ -14,14 +14,14 @@ namespace CodeBuilderApp.Tagging
             this.TextTags = textTags;
         }
 
-        public DocumentGroup(string folder, string name, string text)
+        public TagDocumentGroup(string folder, string name, string text)
         {
             this.Folder = folder;
             this.Name = name;
             this.Text = text;
         }
 
-        private DocumentGroup()
+        private TagDocumentGroup()
         {
         }
 

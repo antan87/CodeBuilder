@@ -2,22 +2,22 @@
 
 namespace CodeBuilderApp.Tagging
 {
-    public sealed class ProjectGroup
+    public sealed class TagProjectGroup
     {
-        public IList<DocumentGroup> Documents { get; } = new List<DocumentGroup>();
+        public IList<TagDocumentGroup> Documents { get; } = new List<TagDocumentGroup>();
 
-        public ProjectGroup(IList<DocumentGroup> documents)
+        public TagProjectGroup(IList<TagDocumentGroup> documents)
         {
             this.Documents = documents;
         }
 
-        public ProjectGroup(IList<DocumentGroup> documents, IEnumerable<TagElement> tags)
+        public TagProjectGroup(IList<TagDocumentGroup> documents, IEnumerable<TagElement> tags)
         {
             this.Documents = documents;
             this.Tags = tags;
         }
 
-        private ProjectGroup()
+        private TagProjectGroup()
         {
         }
 

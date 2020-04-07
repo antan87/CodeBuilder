@@ -17,25 +17,25 @@ namespace CodeBuilderApp.Tasks.Functions
     {
         public string Name => "Apply templates";
 
-        private async Task<(TaskReturnKind, DocumentGroup)> ReplaceDocumentTagsTask(DocumentGroup documentGroup)
+        private async Task<(TaskReturnKind, TagDocumentGroup)> ReplaceDocumentTagsTask(TagDocumentGroup documentGroup)
         {
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine($"Implement tags for file {documentGroup.Name}");
             Console.WriteLine(Environment.NewLine);
 
             if (documentGroup.FolderTags.Any())
-                documentGroup = await TaskExecutable.RunTask<DocumentGroup>(this.ReplaceFolderTags, documentGroup);
+                documentGroup = await TaskExecutable.RunTask<TagDocumentGroup>(this.ReplaceFolderTags, documentGroup);
 
             if (documentGroup.NameTags.Any())
-                documentGroup = await TaskExecutable.RunTask<DocumentGroup>(this.ReplaceNameTags, documentGroup);
+                documentGroup = await TaskExecutable.RunTask<TagDocumentGroup>(this.ReplaceNameTags, documentGroup);
 
             if (documentGroup.TextTags.Any())
-                documentGroup = await TaskExecutable.RunTask<DocumentGroup>(this.ReplaceTextTags, documentGroup);
+                documentGroup = await TaskExecutable.RunTask<TagDocumentGroup>(this.ReplaceTextTags, documentGroup);
 
             return (TaskReturnKind.Exit, documentGroup);
         }
 
-        private async Task<(TaskReturnKind, DocumentGroup)> ReplaceFolderTags(DocumentGroup documentGroup)
+        private async Task<(TaskReturnKind, TagDocumentGroup)> ReplaceFolderTags(TagDocumentGroup documentGroup)
         {
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine($"Replace folder tags: {documentGroup.Folder}");
@@ -44,13 +44,13 @@ namespace CodeBuilderApp.Tasks.Functions
             foreach (var tag in documentGroup.FolderTags)
             {
                 var replacedFolderText = await TaskExecutable.RunTask(this.ReplaceTagTask, tag.Tag, documentGroup.Folder);
-                documentGroup = new DocumentGroup(replacedFolderText, documentGroup.Name, documentGroup.Text, documentGroup.FolderTags, documentGroup.NameTags, documentGroup.TextTags);
+                documentGroup = new TagDocumentGroup(replacedFolderText, documentGroup.Name, documentGroup.Text, documentGroup.FolderTags, documentGroup.NameTags, documentGroup.TextTags);
             }
 
             return (TaskReturnKind.Exit, documentGroup);
         }
 
-        private async Task<(TaskReturnKind, DocumentGroup)> ReplaceNameTags(DocumentGroup documentGroup)
+        private async Task<(TaskReturnKind, TagDocumentGroup)> ReplaceNameTags(TagDocumentGroup documentGroup)
         {
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine($"Replace name tags: {documentGroup.Name}");
@@ -59,13 +59,13 @@ namespace CodeBuilderApp.Tasks.Functions
             foreach (var tag in documentGroup.NameTags)
             {
                 string replacedNameText = await TaskExecutable.RunTask(this.ReplaceTagTask, tag.Tag, documentGroup.Name);
-                documentGroup = new DocumentGroup(documentGroup.Folder, replacedNameText, documentGroup.Text, documentGroup.FolderTags, documentGroup.NameTags, documentGroup.TextTags);
+                documentGroup = new TagDocumentGroup(documentGroup.Folder, replacedNameText, documentGroup.Text, documentGroup.FolderTags, documentGroup.NameTags, documentGroup.TextTags);
             }
 
             return (TaskReturnKind.Exit, documentGroup);
         }
 
-        private async Task<(TaskReturnKind, DocumentGroup)> ReplaceTextTags(DocumentGroup documentGroup)
+        private async Task<(TaskReturnKind, TagDocumentGroup)> ReplaceTextTags(TagDocumentGroup documentGroup)
         {
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine($"Replace text tags: {documentGroup.Text}");
@@ -74,7 +74,7 @@ namespace CodeBuilderApp.Tasks.Functions
             foreach (var tag in documentGroup.TextTags)
             {
                 string? replacedText = await TaskExecutable.RunTask(this.ReplaceTagTask, tag.Tag, documentGroup.Text);
-                documentGroup = new DocumentGroup(documentGroup.Folder, documentGroup.Name, replacedText, documentGroup.FolderTags, documentGroup.NameTags, documentGroup.TextTags);
+                documentGroup = new TagDocumentGroup(documentGroup.Folder, documentGroup.Name, replacedText, documentGroup.FolderTags, documentGroup.NameTags, documentGroup.TextTags);
             }
 
             return (TaskReturnKind.Exit, documentGroup);
@@ -134,14 +134,14 @@ namespace CodeBuilderApp.Tasks.Functions
             if (project == null)
                 return (TaskReturnKind.Continue, default);
 
-            await foreach (ProjectGroup? projectGroup in TaskExecutable.RunTaskAsyncEnumerable(this.SelectTemplateFileTask, project))
+            await foreach (TagProjectGroup? projectGroup in TaskExecutable.RunTaskAsyncEnumerable(this.SelectTemplateFileTask, project))
             {
                 if (projectGroup == null)
                     continue;
 
-                foreach (DocumentGroup documentGroup in projectGroup.Documents)
+                foreach (TagDocumentGroup documentGroup in projectGroup.Documents)
                 {
-                    DocumentGroup newDocumentGroup = await TaskExecutable.RunTask<DocumentGroup>(this.ReplaceDocumentTagsTask, documentGroup);
+                    TagDocumentGroup newDocumentGroup = await TaskExecutable.RunTask<TagDocumentGroup>(this.ReplaceDocumentTagsTask, documentGroup);
                     Document? newDocument = this.AppendDocumentToProject(project, newDocumentGroup);
                     return (TaskReturnKind.Continue, newDocument);
                 }
@@ -150,7 +150,7 @@ namespace CodeBuilderApp.Tasks.Functions
             return (TaskReturnKind.Exit, default);
         }
 
-        private Document? AppendDocumentToProject(Project project, DocumentGroup documentGroup)
+        private Document? AppendDocumentToProject(Project project, TagDocumentGroup documentGroup)
         {
             SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(documentGroup.Text);
             if (syntaxTree.TryGetRoot(out SyntaxNode node))
@@ -159,7 +159,7 @@ namespace CodeBuilderApp.Tasks.Functions
             return null;
         }
 
-        private async Task<(TaskReturnKind, ProjectGroup?)> SelectTemplateFileTask(Project project)
+        private async Task<(TaskReturnKind, TagProjectGroup?)> SelectTemplateFileTask(Project project)
         {
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine("Select template file:");
@@ -176,7 +176,7 @@ namespace CodeBuilderApp.Tasks.Functions
 
             string json = await File.ReadAllTextAsync(templateFilePath);
 
-            ProjectGroup projectGroup = JsonConvert.DeserializeObject<ProjectGroup>(json);
+            TagProjectGroup projectGroup = JsonConvert.DeserializeObject<TagProjectGroup>(json);
 
             return (TaskReturnKind.Exit, projectGroup);
         }
