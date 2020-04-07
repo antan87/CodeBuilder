@@ -33,7 +33,7 @@ namespace CodeBuilderApp.Tasks.Functions
             return Task.FromResult((true, seletedProject));
         }
 
-        public static Task<TaskReturnKind> SaveDocumentsTask(ProjectGroup projectGroup)
+        public static Task<TaskReturnKind> SaveDocumentsTask(TagProjectGroup projectGroup)
         {
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine(Environment.NewLine);
