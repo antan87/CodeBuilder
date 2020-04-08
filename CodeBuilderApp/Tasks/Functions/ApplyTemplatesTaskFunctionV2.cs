@@ -1,10 +1,8 @@
 ﻿using CodeBuilderApp.Common;
-using CodeBuilderApp.Extensions;
 using CodeBuilderApp.Tagging;
 using CodeBuilderApp.Tasks.Interfaces;
 using CodeBuilderWorkspace.Workspace.Factory;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.MSBuild;
 using Newtonsoft.Json;
 using System;
@@ -19,7 +17,7 @@ namespace CodeBuilderApp.Tasks.Functions
     {
         public string Name => "Apply templates";
 
-        private async Task<IEnumerable<CreateDocumentGroup>> GetDocumentsToCreate(TagOption option, IEnumerable<TagElement> tags)
+        private async Task<IEnumerable<DocumentGroup>> GetDocumentsToCreate(TagOption option, IEnumerable<TagElement> tags)
         {
             switch (option)
             {
@@ -27,56 +25,14 @@ namespace CodeBuilderApp.Tasks.Functions
                     return this.ReplaceTags(tags);
 
                 case TagOption.LoadReplacedTags:
-                    IEnumerable<CreateDocumentGroup>? loadedTags = await TaskExecutable.RunTask(this.LoadReplacedTags);
+                    IEnumerable<DocumentGroup>? loadedTags = await TaskExecutable.RunTask(this.LoadReplacedTags);
                     if (loadedTags == null)
-                        return Enumerable.Empty<CreateDocumentGroup>();
+                        return Enumerable.Empty<DocumentGroup>();
 
                     return loadedTags;
             }
 
-            return Enumerable.Empty<CreateDocumentGroup>();
-        }
-
-        private TagDocumentGroup ReplaceDocumentTags(TagDocumentGroup documentGroup, IEnumerable<ReplacedTagElement> tags)
-        {
-            documentGroup = this.ReplaceFolderTags(documentGroup, tags);
-            documentGroup = this.ReplaceNameTags(documentGroup, tags);
-            documentGroup = this.ReplaceTextTags(documentGroup, tags);
-
-            return documentGroup;
-        }
-
-        private TagDocumentGroup ReplaceFolderTags(TagDocumentGroup documentGroup, IEnumerable<ReplacedTagElement> tags)
-        {
-            foreach (ReplacedTagElement tag in tags)
-            {
-                string replacedFolderText = documentGroup.Folder.ReplaceTagWithText(tag.NewContent, tag.Tag);
-                documentGroup = new TagDocumentGroup(replacedFolderText, documentGroup.Name, documentGroup.Text);
-            }
-
-            return documentGroup;
-        }
-
-        private TagDocumentGroup ReplaceNameTags(TagDocumentGroup documentGroup, IEnumerable<ReplacedTagElement> tags)
-        {
-            foreach (ReplacedTagElement tag in tags)
-            {
-                string replacedNameText = documentGroup.Name.ReplaceTagWithText(tag.NewContent, tag.Tag);
-                documentGroup = new TagDocumentGroup(documentGroup.Folder, replacedNameText, documentGroup.Text);
-            }
-
-            return documentGroup;
-        }
-
-        private TagDocumentGroup ReplaceTextTags(TagDocumentGroup documentGroup, IEnumerable<ReplacedTagElement> tags)
-        {
-            foreach (ReplacedTagElement tag in tags)
-            {
-                string replaceText = documentGroup.Text.ReplaceTagWithText(tag.NewContent, tag.Tag);
-                documentGroup = new TagDocumentGroup(documentGroup.Folder, documentGroup.Name, replaceText);
-            }
-
-            return documentGroup;
+            return Enumerable.Empty<DocumentGroup>();
         }
 
         public async Task RunTask()
@@ -97,7 +53,7 @@ namespace CodeBuilderApp.Tasks.Functions
             using MSBuildWorkspace workspace = await new MSBuildWorkspaceFactory().GetWorkspace();
             Solution solution = await workspace.OpenSolutionAsync(solutionPath);
 
-            await foreach (var result in TaskExecutable.RunTaskAsyncEnumerable(this.SelectProjectTask, solution))
+            await foreach (CreateProjectGroup? result in TaskExecutable.RunTaskAsyncEnumerable(this.SelectProjectTask, solution))
             {
                 if (result == null || result.Project == null)
                     continue;
@@ -126,14 +82,14 @@ namespace CodeBuilderApp.Tasks.Functions
                 if (!tagOption.HasValue)
                     return (TaskReturnKind.Exit, null);
 
-                IEnumerable<CreateDocumentGroup> createDocuments = await this.GetDocumentsToCreate(tagOption.Value, projectGroup.Tags);
+                IEnumerable<DocumentGroup> createDocuments = await this.GetDocumentsToCreate(tagOption.Value, projectGroup.Tags);
                 List<Document> documents = new List<Document>();
-                foreach (CreateDocumentGroup createDocument in createDocuments)
+                foreach (DocumentGroup createDocument in createDocuments)
                 {
                     foreach (TagDocumentGroup documentGroup in projectGroup.Documents)
                     {
-                        TagDocumentGroup newDocumentGroup = this.ReplaceDocumentTags(documentGroup, createDocument.ReplacedTags);
-                        Document? newDocument = this.AppendDocumentToProject(project, newDocumentGroup);
+                        TagDocumentGroup newDocumentGroup = CommonTaskFunctions.ReplaceDocumentTags(documentGroup, createDocument.ReplacedTags);
+                        Document? newDocument = CommonTaskFunctions.AppendDocumentToProject(project, newDocumentGroup);
                         if (newDocument != null)
                         {
                             project = newDocument.Project;
@@ -142,15 +98,13 @@ namespace CodeBuilderApp.Tasks.Functions
                     }
                 }
 
-                var createProjectGroup = new CreateProjectGroup(project, documents);
-
-                return (TaskReturnKind.Continue, createProjectGroup);
+                return (TaskReturnKind.Continue, new CreateProjectGroup(project, documents));
             }
 
             return (TaskReturnKind.Exit, null);
         }
 
-        private IEnumerable<CreateDocumentGroup> ReplaceTags(IEnumerable<TagElement> tagElements)
+        private IEnumerable<DocumentGroup> ReplaceTags(IEnumerable<TagElement> tagElements)
         {
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine(Environment.NewLine);
@@ -167,16 +121,7 @@ namespace CodeBuilderApp.Tasks.Functions
                 list.Add(new ReplacedTagElement(element.Tag, newContent));
             }
 
-            return new List<CreateDocumentGroup> { new CreateDocumentGroup(list) };
-        }
-
-        private Document? AppendDocumentToProject(Project project, TagDocumentGroup documentGroup)
-        {
-            SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(documentGroup.Text);
-            if (syntaxTree.TryGetRoot(out SyntaxNode node))
-                return project.AddDocument(documentGroup.Name, node, documentGroup.Folder.Split(@"\"));
-
-            return null;
+            return new List<DocumentGroup> { new DocumentGroup(list) };
         }
 
         private async Task<(TaskReturnKind, TagProjectGroup?)> SelectTemplateFileTask(Project project)
@@ -224,7 +169,7 @@ namespace CodeBuilderApp.Tasks.Functions
             return Task.FromResult((TaskReturnKind.Exit, enumOption));
         }
 
-        private async Task<(TaskReturnKind, IEnumerable<CreateDocumentGroup>?)> LoadReplacedTags()
+        private async Task<(TaskReturnKind, IEnumerable<DocumentGroup>?)> LoadReplacedTags()
         {
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine(Environment.NewLine);
@@ -243,7 +188,7 @@ namespace CodeBuilderApp.Tasks.Functions
 
             try
             {
-                IEnumerable<CreateDocumentGroup> tags = JsonConvert.DeserializeObject<CreateDocumentGroup[]>(json);
+                IEnumerable<DocumentGroup> tags = JsonConvert.DeserializeObject<DocumentGroup[]>(json);
                 return (TaskReturnKind.Exit, tags);
             }
             catch (Exception e)

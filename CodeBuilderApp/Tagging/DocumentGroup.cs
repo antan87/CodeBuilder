@@ -2,9 +2,9 @@
 
 namespace CodeBuilderApp.Tagging
 {
-    public sealed class CreateDocumentGroup
+    public sealed class DocumentGroup
     {
-        public CreateDocumentGroup(IEnumerable<ReplacedTagElement> replacedTags)
+        public DocumentGroup(IEnumerable<ReplacedTagElement> replacedTags)
         {
             this.ReplacedTags = replacedTags;
         }
