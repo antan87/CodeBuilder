@@ -118,13 +118,7 @@ namespace CodeBuilderApp.Tasks.Functions
                 return;
 
             IEnumerable<TagElement> tags = await this.GetTagElements(tagOption.Value);
-            var documents = new List<Document>();
-            await foreach (var document in TaskExecutable.RunTaskAsyncEnumerable(CommonTaskFunctions.SelectDocuments, project.Documents.Where(whereDocument => !documents.Contains(whereDocument))))
-            {
-                if (document != null)
-                    documents.Add(document);
-            }
-
+            IEnumerable<Document> documents = await CommonTaskFunctions.SelectDocuments(project);
             TagProjectGroup projectGroup = await CommonTaskFunctions.ImplementsTags(documents, tags);
             await TaskExecutable.RunTask(CommonTaskFunctions.SaveDocumentsTask, projectGroup);
 

@@ -46,7 +46,7 @@ namespace CodeBuilderApp.Tasks.Functions
             return Task.FromResult((true, seletedProject));
         }
 
-        public static async Task<TagProjectGroup> ImplementsTags(List<Document> documents, IEnumerable<TagElement> tags)
+        public static async Task<TagProjectGroup> ImplementsTags(IEnumerable<Document> documents, IEnumerable<TagElement> tags)
         {
             IEnumerable<Task<TagDocumentGroup>> tasks = documents.Select(document => TagDocument(document, tags));
             TagDocumentGroup[] documentGroups = await Task.WhenAll(tasks);
@@ -119,7 +119,7 @@ namespace CodeBuilderApp.Tasks.Functions
             return Task.FromResult(TaskReturnKind.Exit);
         }
 
-        public static Task<(TaskReturnKind, Document?)> SelectDocuments(IEnumerable<Document> projectDocuments)
+        private static Task<(TaskReturnKind, Document?)> SelectDocument(IEnumerable<Document> projectDocuments)
         {
             Console.WriteLine(Environment.NewLine);
             Console.WriteLine(Environment.NewLine);
@@ -153,6 +153,113 @@ namespace CodeBuilderApp.Tasks.Functions
             return Task.FromResult((TaskReturnKind.Exit, (Document?)selecteDocument));
         }
 
+        public async static Task<IEnumerable<Document>> SelectDocuments(Project project)
+        {
+            Console.WriteLine(Environment.NewLine);
+            Console.WriteLine(Environment.NewLine);
+            Console.WriteLine("Select documents to be tagged:");
+            Console.WriteLine(Environment.NewLine);
+
+            List<Document> selectedDocuments = new List<Document>();
+            DocumentSearchOption? documentOption = await TaskExecutable.RunTask(CommonTaskFunctions.SelectDocumentSearchOption);
+            if (!documentOption.HasValue)
+                return selectedDocuments;
+
+            switch (documentOption.Value)
+            {
+                case DocumentSearchOption.Search:
+                    var fetchedDocuments = await TaskExecutable.RunTaskEnumerable<Document>(CommonTaskFunctions.SearchAndSelectDocuments, project.Documents.ToList());
+
+                    foreach (var document in fetchedDocuments)
+                        selectedDocuments.Add(document);
+
+                    break;
+
+                case DocumentSearchOption.Select:
+                    await foreach (Document? document in TaskExecutable.RunTaskAsyncEnumerable(CommonTaskFunctions.SelectDocument, project.Documents.Where(whereDocument => !selectedDocuments.Contains(whereDocument))))
+                    {
+                        if (document != null)
+                            selectedDocuments.Add(document);
+                    }
+                    break;
+            }
+
+            return selectedDocuments;
+        }
+
+        private static Task<(TaskReturnKind, DocumentSearchOption?)> SelectDocumentSearchOption()
+        {
+            Console.WriteLine(Environment.NewLine);
+            Console.WriteLine(Environment.NewLine);
+            Console.WriteLine("Select search option:");
+            Console.WriteLine(Environment.NewLine);
+
+            Console.WriteLine($"{(int)DocumentSearchOption.Search}: Search and select multiple documents.");
+            Console.WriteLine($"{(int)DocumentSearchOption.Select}: Select single document.");
+            Console.WriteLine(Environment.NewLine);
+
+            string selectedOption = Console.ReadLine();
+            DocumentSearchOption? enumOption = Enum.Parse<DocumentSearchOption>(selectedOption);
+            if (!enumOption.HasValue)
+            {
+                Console.WriteLine("Wrong input!");
+                Console.WriteLine(Environment.NewLine);
+                return Task.FromResult((TaskReturnKind.Continue, (DocumentSearchOption?)default));
+            }
+
+            return Task.FromResult((TaskReturnKind.Exit, enumOption));
+        }
+
+        public static Task<(TaskReturnKind, IEnumerable<Document>)> SearchAndSelectDocuments(IEnumerable<Document> projectDocuments)
+        {
+            Console.WriteLine(Environment.NewLine);
+            Console.WriteLine(Environment.NewLine);
+            Console.WriteLine("Enter wildcard value to be searched:");
+            Console.WriteLine(Environment.NewLine);
+
+            string searchValue = Console.ReadLine();
+
+            IEnumerable<Document> matchedDocuments = projectDocuments.Where(document => document.Name.ToLower().Contains(searchValue.ToLower()));
+            if (!matchedDocuments.Any())
+            {
+                Console.WriteLine("Couldn't find any documents that matched the input wildcard try again!");
+                return Task.FromResult((TaskReturnKind.Continue, Enumerable.Empty<Document>()));
+            }
+
+            Dictionary<string, Document> documentDictionary = new Dictionary<string, Document>();
+            int index = 1;
+            foreach (Document document in matchedDocuments)
+            {
+                Console.WriteLine($"{index}: {(document.Folders.Any() ? string.Join(@"\", document.Folders) + @"\" : string.Empty)}{document.Name}");
+
+                documentDictionary[index.ToString()] = document;
+                index++;
+            }
+
+            Console.WriteLine($"A: All documents");
+            Console.WriteLine(Environment.NewLine);
+
+            string selectedIndexs = Console.ReadLine();
+
+            if ("a" == selectedIndexs.ToLower().Trim())
+                return Task.FromResult((TaskReturnKind.Exit, matchedDocuments));
+
+            string[] documentIndexs = selectedIndexs.Split(",");
+            if (!documentDictionary.Any(document => documentIndexs.Contains(document.Key)))
+            {
+                Console.WriteLine("Wrong input try again!");
+                return Task.FromResult((TaskReturnKind.Continue, Enumerable.Empty<Document>()));
+            }
+
+            Console.WriteLine(Environment.NewLine);
+
+            IEnumerable<Document> documents = documentDictionary.
+                Where(document => documentIndexs.Contains(document.Key)).
+                Select(document => document.Value);
+
+            return Task.FromResult((TaskReturnKind.Exit, documents));
+        }
+
         private static async Task<TagDocumentGroup> TagDocument(Document document, IEnumerable<TagElement> tags)
         {
             string folder = string.Join("/", document.Folders);
@@ -171,6 +278,12 @@ namespace CodeBuilderApp.Tasks.Functions
             }
 
             return documentGroup;
+        }
+
+        private enum DocumentSearchOption
+        {
+            Search = 0,
+            Select = 1
         }
     }
 }

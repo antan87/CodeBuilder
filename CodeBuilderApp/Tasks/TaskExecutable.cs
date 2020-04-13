@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -72,6 +73,21 @@ namespace CodeBuilderApp.Tasks
             while (!exit)
             {
                 (TaskReturnKind, T) result = await task(input);
+                if (result.Item1 == TaskReturnKind.Exit)
+                    exit = true;
+
+                input = result.Item2;
+            }
+
+            return input;
+        }
+      
+        internal static async Task<IEnumerable<T>> RunTaskEnumerable<T>(Func<IEnumerable<T>, Task<(TaskReturnKind, IEnumerable<T>)>> task, IEnumerable<T> input) where T : class
+        {
+            bool exit = false;
+            while (!exit)
+            {
+                (TaskReturnKind, IEnumerable<T>) result = await task(input);
                 if (result.Item1 == TaskReturnKind.Exit)
                     exit = true;
 

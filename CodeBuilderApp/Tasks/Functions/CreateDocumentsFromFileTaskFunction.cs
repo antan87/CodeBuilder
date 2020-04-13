@@ -45,13 +45,7 @@ namespace CodeBuilderApp.Tasks.Functions
             if (project == null)
                 return;
 
-            var selectedDocuments = new List<Document>();
-            await foreach (Document? document in TaskExecutable.RunTaskAsyncEnumerable(CommonTaskFunctions.SelectDocuments, project.Documents.Where(whereDocument => !selectedDocuments.Contains(whereDocument))))
-            {
-                if (document != null)
-                    selectedDocuments.Add(document);
-            }
-
+            IEnumerable<Document> selectedDocuments = await CommonTaskFunctions.SelectDocuments(project);
             TagProjectGroup projectGroup = await CommonTaskFunctions.ImplementsTags(selectedDocuments, template.TagElements);
             List<Document> documents = new List<Document>();
             foreach (DocumentGroup createDocument in template.Documents)
