@@ -48,8 +48,12 @@ namespace CodeBuilderApp.Tasks.Functions
 
         public static async Task<TagProjectGroup> ImplementsTags(IEnumerable<Document> documents, IEnumerable<TagElement> tags)
         {
-            IEnumerable<Task<TagDocumentGroup>> tasks = documents.Select(document => TagDocument(document, tags));
-            TagDocumentGroup[] documentGroups = await Task.WhenAll(tasks);
+            List<TagDocumentGroup> documentGroups = new List<TagDocumentGroup>();
+            foreach (var document in documents)
+            {
+                var taggedDocument = await TagDocument(document, tags);
+                documentGroups.Add(taggedDocument);
+            }
 
             return new TagProjectGroup(documentGroups, tags);
         }
@@ -168,7 +172,7 @@ namespace CodeBuilderApp.Tasks.Functions
             switch (documentOption.Value)
             {
                 case DocumentSearchOption.Search:
-                    var fetchedDocuments = await TaskExecutable.RunTaskEnumerable<Document>(CommonTaskFunctions.SearchAndSelectDocuments, project.Documents.ToList());
+                    var fetchedDocuments = await TaskExecutable.RunTaskEnumerable<Document>(CommonTaskFunctions.SearchAndSelectDocuments, project.Documents);
 
                     foreach (var document in fetchedDocuments)
                         selectedDocuments.Add(document);
